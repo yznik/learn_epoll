@@ -1,12 +1,11 @@
 #include "socket.h"
 #include "checker.h"
 
+#include <sstream>
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#include <optional>
-
-#include <sstream>
 
 Socket::Socket(int descriptor, sa_family_t domain, int type, int protocol)
 {
@@ -154,9 +153,55 @@ std::string IPv4Socket::ToStr() const noexcept
         <<  "domain " << domain << '\n' 
         << "type " << type << '\n' 
         << "protocol " << protocol << '\n'
-        << "is linked " << std::boolalpha << linked << '\n';
+        << "is linked " << std::boolalpha << linked << '\n'
+        << "address " << Address() << ":" << Port() << std::endl;
+    return ss.str();
+}
+
+std::string IPv4Socket::Address() const noexcept
+{
     char buf[16] = {0};
     if (!CHECK_STR(inet_ntop(domain, &params.sin_addr, buf, sizeof(buf)), nullptr, "Cannot convert ip to string"))
-        ss << "address " << buf << ":" << ntohs(params.sin_port) << std::endl;
-    return ss.str();
+        return buf;
+    return {};
+}
+
+uint16_t IPv4Socket::Port() const noexcept
+{
+    return ntohs(params.sin_port);
+}
+
+template<size_t SIZE>
+inline ssize_t READ(const Socket& t, char (&buf)[SIZE])
+{
+    auto res = recv(t.get(), buf, sizeof(buf), MSG_NOSIGNAL);
+    CHECK(res);
+    return res;
+}
+
+std::optional<std::string> READ(const Socket& t)
+{
+    char buf[5] = {0};
+    std::stringstream ss;
+    while (true)
+    {
+        auto res = READ(t, buf);
+        if (res < 0)
+            return {};
+        if (res == 0)
+            return ss.str();
+        ss << buf;
+        if(buf[res - 1] == '\n')
+            return ss.str();
+        memset(buf,0,sizeof(buf));
+    }
+    
+    return {};
+}
+
+bool WRITE(const Socket& t, const std::string_view msg)
+{
+    auto res = send(t.get(), msg.data(), msg.length(), MSG_NOSIGNAL);
+    CHECK(res);
+    return res < 0;
 }

@@ -4,9 +4,14 @@
 #include "socket.h"
 
 #include <thread>
+#include <vector>
+#include <sstream>
 
 int main()
 {
+    std::vector<std::thread> threads;
+    std::vector<IPv4Socket*> sockets;
+    int connections = 2;
     if (auto s = IPv4Socket::CreateIPv4TCPSocket())
     {
         uint16_t port = 1024;
@@ -15,18 +20,56 @@ int main()
         }
         s->Listen();
         std::cout << s->ToStr() << std::endl;
-        if (auto accepted = s->Accept())
+        while (true)
         {
-            std::cout << "info " << accepted->ToStr() << std::endl;
-            char buf[100] = {0};
-            READ(*accepted, buf);
-            std::cout << buf << std::endl;
-            WRITE(*accepted, buf);
-            std::this_thread::sleep_for(std::chrono::seconds{5});
+            if (auto accepted = s->Accept())
+            {
+                {
+                    std::stringstream ss;
+                    ss << "Client " << accepted->Address() << ':' << accepted->Port() << " connected" << std::endl;
+                    const auto message = ss.str();
+                    for(const auto& socket: sockets)
+                    {
+                        WRITE(*socket, message);
+                    }
+                }
+                threads.push_back(std::thread([&sockets](IPv4Socket&& socket)
+                {
+                    std::cout << socket.ToStr();
+                    sockets.push_back(&socket);
+                    while (true)
+                    {
+                        auto received = READ(socket);
+                        if(!received)
+                            break;
+                        std::cout << *received << std::endl;
+                        std::stringstream ss;
+                        ss << '[' << socket.Address() << ':' << socket.Port() << "]: " << *received;
+                        const auto message = ss.str();
+                        for(const auto& s : sockets)
+                        {
+                            if (s->get() != socket.get())
+                            {
+                                WRITE(*s, message);
+                            }
+                        }
+                    }
+                }, std::move(*accepted)));
+                connections--;
+            }
+            else
+            {
+                std::cout << "failed to accept" << std::endl;
+            }
+            if (connections == 0)
+                break;
         }
-        else
+    }
+    for (auto& t : threads)
+    {
+        if (t.joinable())
         {
-            std::cout << "failed to accept" << std::endl;
+            t.join();
         }
     }
     if (auto e1 = EPoll::create())

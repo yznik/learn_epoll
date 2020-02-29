@@ -3,6 +3,8 @@
 #include "checker.h"
 
 #include <optional>
+#include <string>
+
 #include <arpa/inet.h>
 
 class Socket
@@ -49,6 +51,9 @@ public:
 
     std::string ToStr() const noexcept;
 
+    std::string Address() const noexcept;
+    uint16_t Port() const noexcept;
+
 private:
     using Socket::Socket;
     IPv4Socket(Socket&& s): Socket(std::move(s)) {}
@@ -57,14 +62,5 @@ private:
     sockaddr_in params;
 };
 
-template<size_t SIZE>
-void READ(const Socket& t, char (&buf)[SIZE])
-{
-    recv(t.get(), buf, sizeof(buf), MSG_NOSIGNAL);
-}
-
-template<size_t SIZE>
-void WRITE(const Socket& t, char (&buf)[SIZE])
-{
-    send(t.get(), buf, sizeof(buf), MSG_NOSIGNAL);
-}
+std::optional<std::string> READ(const Socket& t);
+bool WRITE(const Socket& t, const std::string_view msg);
