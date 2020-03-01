@@ -11,6 +11,9 @@ class Socket
 {
 public:
     Socket(Socket&& s);
+    Socket& operator=(Socket&&) = delete;
+    Socket(const Socket&) = delete;
+    Socket& operator=(const Socket&) = delete;
 
     ~Socket();
 
@@ -29,6 +32,25 @@ protected:
     bool linked = false;
 };
 
+class Socket_view
+{
+public:
+    Socket_view(int descriptor): fd(descriptor) {}
+    inline int get() const noexcept { return fd; }
+private:
+    int fd = -1;
+};
+
+inline bool operator==(const Socket& s, const Socket_view& sv)
+{
+    return s.get() == sv.get();
+}
+
+inline bool operator==(const Socket_view& sv, const Socket& s)
+{
+    return s == sv;
+}
+
 class IPv4Socket : public Socket
 {
 public:
@@ -36,6 +58,9 @@ public:
     {
         params = s.params;
     }
+    IPv4Socket& operator=(IPv4Socket&& s) = delete;
+    IPv4Socket(const IPv4Socket&) = delete;
+    IPv4Socket& operator=(const IPv4Socket&) = delete;
 
     static std::optional<IPv4Socket> CreateIPv4TCPSocket();
     static std::optional<IPv4Socket> CreateUDPTCPSocket();
@@ -56,7 +81,7 @@ public:
 
 private:
     using Socket::Socket;
-    IPv4Socket(Socket&& s): Socket(std::move(s)) {}
+    explicit IPv4Socket(Socket&& s): Socket(std::move(s)) {}
 
 private:
     sockaddr_in params;

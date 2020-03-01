@@ -11,9 +11,9 @@ int main()
 {
     std::vector<std::thread> threads;
     std::vector<IPv4Socket*> sockets;
-    int connections = 2;
     if (auto s = IPv4Socket::CreateIPv4TCPSocket())
     {
+        int connections = 2;
         uint16_t port = 1024;
         while(!s->Bind("127.0.0.1", port++))
         {
