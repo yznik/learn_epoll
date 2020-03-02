@@ -6,6 +6,7 @@
 #include <string>
 
 #include <arpa/inet.h>
+#include <sys/un.h>
 
 class Socket
 {
@@ -51,7 +52,7 @@ inline bool operator==(const Socket_view& sv, const Socket& s)
     return s == sv;
 }
 
-class IPv4Socket : public Socket
+class IPv4Socket final : public Socket
 {
 public:
     IPv4Socket(IPv4Socket&& s): Socket(std::move(s))
@@ -62,8 +63,8 @@ public:
     IPv4Socket(const IPv4Socket&) = delete;
     IPv4Socket& operator=(const IPv4Socket&) = delete;
 
-    static std::optional<IPv4Socket> CreateIPv4TCPSocket();
-    static std::optional<IPv4Socket> CreateUDPTCPSocket();
+    static std::optional<IPv4Socket> CreateTCPSocket();
+    static std::optional<IPv4Socket> CreateUDPSocket();
 
     bool Bind(std::string_view address, uint16_t port);
     bool Bind(uint32_t address, uint16_t port);
@@ -85,6 +86,40 @@ private:
 
 private:
     sockaddr_in params;
+};
+
+class UnixSocket final : public Socket
+{
+public:
+    ~UnixSocket();
+    UnixSocket(UnixSocket&& s): Socket(std::move(s))
+    {
+        params = s.params;
+    }
+    UnixSocket& operator=(UnixSocket&& s) = delete;
+    UnixSocket(const UnixSocket&) = delete;
+    UnixSocket& operator=(const UnixSocket&) = delete;
+
+    static std::optional<UnixSocket> CreateTCPSocket();
+    static std::optional<UnixSocket> CreateUDPSocket();
+
+    bool Bind(std::string_view path);
+
+    bool Listen(int maxConn = SOMAXCONN);
+    std::optional<UnixSocket> Accept() const noexcept;
+
+    bool Connect(std::string_view address);
+
+    std::string ToStr() const noexcept;
+
+    std::string_view Path() const noexcept;
+
+private:
+    using Socket::Socket;
+    explicit UnixSocket(Socket&& s): Socket(std::move(s)) {}
+
+private:
+    sockaddr_un params;
 };
 
 std::optional<std::string> READ(const Socket& t);

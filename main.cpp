@@ -7,11 +7,11 @@
 #include <vector>
 #include <sstream>
 
-int main()
+void IPv4TCPTest()
 {
     std::vector<std::thread> threads;
     std::vector<IPv4Socket*> sockets;
-    if (auto s = IPv4Socket::CreateIPv4TCPSocket())
+    if (auto s = IPv4Socket::CreateTCPSocket())
     {
         int connections = 2;
         uint16_t port = 1024;
@@ -30,7 +30,8 @@ int main()
                     const auto message = ss.str();
                     for(const auto& socket: sockets)
                     {
-                        WRITE(*socket, message);
+                        if(!WRITE(*socket, message))
+                            break;
                     }
                 }
                 threads.push_back(std::thread([&sockets](IPv4Socket&& socket)
@@ -50,7 +51,8 @@ int main()
                         {
                             if (s->get() != socket.get())
                             {
-                                WRITE(*s, message);
+                                if(!WRITE(*s, message))
+                                    break;
                             }
                         }
                     }
@@ -72,6 +74,55 @@ int main()
             t.join();
         }
     }
+}
+
+void UnixTCPTest()
+{
+    std::vector<std::thread> threads;
+    if (auto s = UnixSocket::CreateTCPSocket())
+    {
+        if(!s->Bind("/var/mysocket.sock"))
+        {
+            std::cerr << "failed to open socket" << std::endl;
+            return;
+        }
+        s->Listen();
+        std::cout << s->ToStr() << std::endl;
+        if (auto accepted = s->Accept())
+        {
+            threads.push_back(std::thread([](UnixSocket&& socket)
+            {
+                std::cout << socket.ToStr();
+                while (true)
+                {
+                    auto received = READ(socket);
+                    if(!received)
+                        break;
+                    std::cout << *received << std::endl;
+                    if(!WRITE(socket, *received))
+                    {
+                        break;
+                    }
+                }
+            }, std::move(*accepted)));
+        }
+        else
+        {
+            std::cout << "failed to accept" << std::endl;
+        }
+    }
+    for (auto& t : threads)
+    {
+        if (t.joinable())
+        {
+            t.join();
+        }
+    }
+}
+
+int main()
+{
+    UnixTCPTest();
     if (auto e1 = EPoll::create())
     {
         std::cout << e1->get() << std::endl;

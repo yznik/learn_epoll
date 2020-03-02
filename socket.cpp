@@ -50,7 +50,7 @@ Socket::~Socket()
     }
 }
 
-std::optional<IPv4Socket> IPv4Socket::CreateIPv4TCPSocket()
+std::optional<IPv4Socket> IPv4Socket::CreateTCPSocket()
 {
     if (auto socket = createSocket(AF_INET, SOCK_STREAM, IPPROTO_TCP))
     {
@@ -59,7 +59,7 @@ std::optional<IPv4Socket> IPv4Socket::CreateIPv4TCPSocket()
     return {};
 }
 
-std::optional<IPv4Socket> IPv4Socket::CreateUDPTCPSocket()
+std::optional<IPv4Socket> IPv4Socket::CreateUDPSocket()
 {
     if (auto socket = createSocket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))
     {
@@ -171,6 +171,103 @@ uint16_t IPv4Socket::Port() const noexcept
     return ntohs(params.sin_port);
 }
 
+UnixSocket::~UnixSocket()
+{
+    auto path = Path();
+    if (path.size())
+    {
+        std::cout << "unlinking" << std::endl;
+        CHECK(unlink(params.sun_path));
+    }
+}
+
+std::optional<UnixSocket> UnixSocket::CreateTCPSocket()
+{
+    if (auto socket = createSocket(AF_UNIX, SOCK_STREAM, 0))
+    {
+        return {UnixSocket(std::move(*socket))};
+    }
+    return {};
+}
+
+std::optional<UnixSocket> UnixSocket::CreateUDPSocket()
+{
+    if (auto socket = createSocket(AF_UNIX, SOCK_DGRAM, 0))
+    {
+        return {UnixSocket(std::move(*socket))};
+    }
+    return {};
+}
+
+bool UnixSocket::Bind(std::string_view path)
+{
+    sockaddr_un sun = {0, {0}};
+    sun.sun_family = domain;
+    std::copy(path.begin(), path.end(), std::begin(sun.sun_path));
+    auto res = CHECK(bind(fd, reinterpret_cast<sockaddr*>(&sun), sizeof(sun)));
+    if (res)
+    {
+        params = sun;
+    }
+    return res;
+}
+
+bool UnixSocket::Listen(int maxConn)
+{
+    if (CHECK_STR(linked, true, "socket already connected"))
+    {
+        return false;
+    }
+    linked = CHECK(listen(fd, maxConn));
+    return linked;
+}
+
+std::optional<UnixSocket> UnixSocket::Accept() const noexcept
+{
+    sockaddr_un sa;
+    socklen_t socklen = 0;
+    auto acceptFd = accept(fd, reinterpret_cast<sockaddr*>(&sa), &socklen);
+    if (CHECK_ERROR(acceptFd))
+    {
+        auto socket = std::optional<UnixSocket>(UnixSocket(acceptFd, domain, type, protocol));
+        socket->params = sa;
+        socket->linked = true;
+        return socket;
+    }
+    return {};
+}
+
+bool UnixSocket::Connect(std::string_view path)
+{
+    if (CHECK_STR(linked, true, "socket already connected"))
+    {
+        return false;
+    }
+    sockaddr_un sun = {0, {0}};
+    sun.sun_family = domain;
+    std::copy(path.begin(), path.end(), std::begin(sun.sun_path));
+    linked = CHECK(connect(fd, reinterpret_cast<sockaddr*>(&sun), sizeof(sun)));
+    return linked;
+}
+
+std::string UnixSocket::ToStr() const noexcept
+{
+    std::stringstream ss;
+    ss << "fd: " << fd << '\n' 
+       << "domain " << domain << '\n' 
+       << "type " << type << '\n' 
+       << "protocol " << protocol << '\n'
+       << "is linked " << std::boolalpha << linked << '\n'
+       << "path " << Path() << std::endl;
+    return ss.str();
+}
+
+std::string_view UnixSocket::Path() const noexcept
+{
+    return params.sun_path;
+}
+
+
 template<size_t SIZE>
 inline ssize_t READ(const Socket& t, char (&buf)[SIZE])
 {
@@ -203,5 +300,5 @@ bool WRITE(const Socket& t, const std::string_view msg)
 {
     auto res = send(t.get(), msg.data(), msg.length(), MSG_NOSIGNAL);
     CHECK(res);
-    return res < 0;
+    return res >= 0;
 }
