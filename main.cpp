@@ -10,7 +10,7 @@
 void IPv4TCPTest()
 {
     std::vector<std::thread> threads;
-    std::vector<IPv4Socket*> sockets;
+    std::vector<Socket_view> sockets;
     if (auto s = IPv4Socket::CreateTCPSocket())
     {
         int connections = 2;
@@ -30,18 +30,18 @@ void IPv4TCPTest()
                     const auto message = ss.str();
                     for(const auto& socket: sockets)
                     {
-                        if(!WRITE(*socket, message))
-                            break;
+                        if(!WRITE(socket, message))
+                            return;
                     }
                 }
+                sockets.push_back(Socket_view(*accepted));
                 threads.push_back(std::thread([&sockets](IPv4Socket&& socket)
                 {
                     std::cout << socket.ToStr();
-                    sockets.push_back(&socket);
                     while (true)
                     {
                         auto received = READ(socket);
-                        if(!received)
+                        if(!received || received->size() == 0)
                             break;
                         std::cout << *received << std::endl;
                         std::stringstream ss;
@@ -49,10 +49,10 @@ void IPv4TCPTest()
                         const auto message = ss.str();
                         for(const auto& s : sockets)
                         {
-                            if (s->get() != socket.get())
+                            if (s != socket)
                             {
-                                if(!WRITE(*s, message))
-                                    break;
+                                if(!WRITE(s, message))
+                                    return;
                             }
                         }
                     }
@@ -122,7 +122,8 @@ void UnixTCPTest()
 
 int main()
 {
-    UnixTCPTest();
+    IPv4TCPTest();
+    // UnixTCPTest();
     if (auto e1 = EPoll::create())
     {
         std::cout << e1->get() << std::endl;

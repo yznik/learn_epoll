@@ -36,7 +36,8 @@ protected:
 class Socket_view
 {
 public:
-    Socket_view(int descriptor): fd(descriptor) {}
+    explicit Socket_view(int descriptor): fd(descriptor) {}
+    explicit Socket_view(const Socket& socket): fd(socket.get()) {}
     inline int get() const noexcept { return fd; }
 private:
     int fd = -1;
@@ -50,6 +51,16 @@ inline bool operator==(const Socket& s, const Socket_view& sv)
 inline bool operator==(const Socket_view& sv, const Socket& s)
 {
     return s == sv;
+}
+
+inline bool operator!=(const Socket_view& sv, const Socket& s)
+{
+    return !(s == sv);
+}
+
+inline bool operator!=(const Socket& s, const Socket_view& sv)
+{
+    return !(s == sv);
 }
 
 class IPv4Socket final : public Socket
@@ -124,3 +135,4 @@ private:
 
 std::optional<std::string> READ(const Socket& t);
 bool WRITE(const Socket& t, const std::string_view msg);
+bool WRITE(const Socket_view& t, const std::string_view msg);

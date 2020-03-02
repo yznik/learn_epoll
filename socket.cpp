@@ -302,3 +302,10 @@ bool WRITE(const Socket& t, const std::string_view msg)
     CHECK(res);
     return res >= 0;
 }
+
+bool WRITE(const Socket_view& t, const std::string_view msg)
+{
+    auto res = send(t.get(), msg.data(), msg.length(), MSG_NOSIGNAL);
+    CHECK(res);
+    return res >= 0;
+}
