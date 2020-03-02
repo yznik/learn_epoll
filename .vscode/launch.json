@@ -5,9 +5,10 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "(gdb) Запустить",
+            "name": "build and gdb",
             "type": "cppdbg",
             "request": "launch",
+            "preLaunchTask": "make",
             "program": "${workspaceFolder}/server",
             "args": [],
             "stopAtEntry": false,
@@ -21,7 +22,8 @@
                     "text": "-enable-pretty-printing",
                     "ignoreFailures": true
                 }
-            ]
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
         }
     ]
 }
